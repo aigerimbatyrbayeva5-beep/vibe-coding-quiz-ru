@@ -36,6 +36,14 @@ input{font:inherit;font-size:22px;font-weight:700;padding:14px 16px;border-radiu
 @keyframes bob{50%{transform:translateY(-10px)}}
 .card{background:rgba(255,255,255,.95);color:#1b1b2f;border-radius:18px;padding:14px 16px;font-size:17px;line-height:1.45;text-align:left;width:100%}
 .res{font-size:34px;font-weight:900}
+.note{background:#ffd23f;color:#1b1b2f;border-radius:16px;padding:12px 14px;font-weight:800;font-size:16px;line-height:1.4;width:100%;text-align:left}
+.teamline{background:rgba(255,255,255,.15);border-radius:16px;padding:10px 14px;font-weight:800;width:100%;text-align:left}
+#vEnd{gap:12px}
+.endhead{text-align:center;display:flex;flex-direction:column;gap:8px;align-items:center}
+.rv{background:rgba(255,255,255,.95);color:#1b1b2f;border-radius:16px;padding:12px 14px;font-size:15px;line-height:1.45;border-left:8px solid #2a9d4b}
+.rv.bad{border-left-color:#e63946}
+.rv .qq{font-weight:800;margin-bottom:6px}
+.rv .w{margin-top:6px;opacity:.85}
 .err{background:#e63946;border-radius:14px;padding:10px 14px;font-weight:700;display:none}
 @media (prefers-reduced-motion: reduce){*{animation:none!important}}
 </style>
@@ -47,8 +55,7 @@ input{font:inherit;font-size:22px;font-weight:700;padding:14px 16px;border-radiu
  <div class="sub">Ваш телефон станет пультом. Вопросы — на доске.</div>
  <div id="roomBox"><div class="sub" style="margin-bottom:6px">Код комнаты</div><input id="room" maxlength="4" placeholder="Например, K7QX" autocomplete="off" style="text-transform:uppercase;letter-spacing:.2em"></div>
  <div><div class="sub" style="margin-bottom:6px">Ваше имя или ник</div><input id="name" maxlength="16" placeholder="Например, Айгерим" autocomplete="off"></div>
- <div class="sub">Выберите команду</div>
- <div class="teams" id="teams"></div>
+ <div class="sub">Команду вам назначит ведущий — случайно 🎲</div>
  <div class="err" id="err"></div>
  <button class="go" id="joinBtn">Войти в игру</button>
 </section>
@@ -64,18 +71,21 @@ input{font:inherit;font-size:22px;font-weight:700;padding:14px 16px;border-radiu
 </section>
 
 <section class="view" id="vRes">
- <div class="big"><div class="res" id="resTitle"></div><div class="card" id="resCard"></div><div class="sub" id="resScore"></div><div class="sub">Следующий вопрос — на доске</div></div>
+ <div class="big"><div class="res" id="resTitle"></div><div class="note" id="resNote" style="display:none"></div><div class="teamline" id="resTeam"></div><div class="card" id="resCard"></div><div class="sub" id="resScore"></div><div class="sub">Следующий вопрос — на доске</div></div>
 </section>
 
 <section class="view" id="vEnd">
- <div class="big"><div class="emoji">🌕</div><h1 id="endTitle"></h1><div class="card" id="endCard"></div><div class="sub">Спасибо за игру!</div></div>
+ <div class="endhead"><div class="emoji">🌕</div><h1 id="endTitle"></h1><div class="card" id="endCard"></div></div>
+ <h1 style="font-size:21px;margin-top:6px">📋 Разбор ваших ответов</h1>
+ <div id="endList" style="display:grid;gap:10px"></div>
+ <div class="sub" style="text-align:center;padding:8px 0 20px">Спасибо за игру!</div>
 </section>
 
 <script>
 const TEAMS=[{name:'Совы',emoji:'🦉',color:'#7b61ff'},{name:'Лисы',emoji:'🦊',color:'#e8590c'},{name:'Кометы',emoji:'☄️',color:'#1d72d8'},{name:'Тигры',emoji:'🐯',color:'#2a9d4b'}];
 const SH=['▲','◆','●','■'], L=['A','B','C','D'];
 const $=id=>document.getElementById(id);
-let team=-1, client=null, me=null, joinTimer=null, joined=false;
+let myTeam=null, client=null, me=null, joinTimer=null, joined=false;
 const BROKERS=['wss://broker.hivemq.com:8884/mqtt','wss://broker.emqx.io:8084/mqtt'];
 let pid; try{ pid=sessionStorage.getItem('rr-pid') }catch(e){}
 if(!pid){ pid=Math.random().toString(36).slice(2,10); try{ sessionStorage.setItem('rr-pid',pid) }catch(e){} }
@@ -83,8 +93,6 @@ const params=new URLSearchParams(location.search);
 if(params.get('room')){ $('room').value=params.get('room').toUpperCase(); $('roomBox').style.display='none'; }
 try{ $('name').value=localStorage.getItem('rr-name')||'' }catch(e){}
 
-$('teams').innerHTML=TEAMS.map((t,i)=>`<button class="team" data-i="${i}" style="background-color:${t.color}">${t.emoji}<br>${t.name}</button>`).join('');
-$('teams').onclick=e=>{ const b=e.target.closest('.team'); if(!b) return; team=+b.dataset.i; document.querySelectorAll('.team').forEach(x=>x.classList.toggle('sel',x===b)); };
 $('pad').innerHTML=L.map((l,i)=>`<button class="k c${i}" data-c="${i}">${SH[i]}<small>${l}</small></button>`).join('');
 $('pad').onclick=e=>{ const b=e.target.closest('.k'); if(!b||!client) return; if(navigator.vibrate) navigator.vibrate(30); up({type:'answer',choice:+b.dataset.c}); show('vWait'); waitMsg('🔒','Ответ принят!','Ждём остальных…'); };
 
@@ -97,51 +105,74 @@ function join(){
  const room=$('room').value.trim().toUpperCase(), name=$('name').value.trim();
  if(room.length!==4) return err('Введите код комнаты из 4 символов.');
  if(!name) return err('Введите имя или ник.');
- if(team<0) return err('Выберите команду.');
  if(!window.mqtt) return err('Нет интернета на телефоне. Включите Wi-Fi или мобильный интернет.');
  try{ localStorage.setItem('rr-name',name) }catch(e){}
  err(''); $('joinBtn').disabled=true; $('joinBtn').textContent='Подключаемся…';
- me={room,name,team};
+ me={room,name};
  connect();
 }
 function topic(t){ return 'agis-vibequiz/'+me.room+'/'+t }
 function up(m){ m.pid=pid; try{ client.publish(topic('up'),JSON.stringify(m),{qos:1}) }catch(e){} }
+let bi=+(params.get('b')||0)%BROKERS.length, tried=0, connTimer=null;
+// Try the relay from the QR first; if it does not answer, switch to the other one automatically.
 function connect(){
  if(client) try{ client.end(true) }catch(e){}
- const b=+(params.get('b')||0);
- client=mqtt.connect(BROKERS[b]||BROKERS[0],{connectTimeout:8000,reconnectPeriod:2000,clean:true});
- client.on('connect',()=>{
-  client.subscribe(topic('down/'+pid),{qos:1},()=>{
-   up({type:'join',name:me.name,team:me.team});
+ clearTimeout(connTimer); clearTimeout(joinTimer); tried++;
+ const c=client=mqtt.connect(BROKERS[bi],{connectTimeout:7000,reconnectPeriod:2000,clean:true});
+ c.on('connect',()=>{ if(c!==client) return; clearTimeout(connTimer);
+  c.subscribe(topic('down/'+pid),{qos:1},()=>{
+   up({type:'join',name:me.name});
    clearTimeout(joinTimer);
-   joinTimer=setTimeout(()=>{ if(!joined) fail('Комната '+me.room+' не отвечает (v3, сервер '+((+(params.get('b')||0))+1)+'). Проверьте код. Если на доске нет надписи «v3», обновите доску: Ctrl+F5.') },8000);
+   joinTimer=setTimeout(()=>{ if(!joined) nextBroker('Комната '+me.room+' не отвечает (v4). Проверьте код на доске. Если на доске нет надписи «v4», обновите доску: Ctrl+F5.') },7000);
   });
  });
- client.on('message',(t,buf)=>{ let m; try{ m=JSON.parse(buf.toString()) }catch(e){ return } onData(m) });
- client.on('reconnect',()=>{ if(joined){ show('vWait'); waitMsg('📡','Переподключение…','Связь прервалась, пробуем снова.') } });
- client.on('error',()=>{});
- setTimeout(()=>{ if(!client.connected && !joined) fail('Нет связи. Включите мобильный интернет или другой Wi-Fi и попробуйте ещё раз.') },10000);
+ c.on('message',(t,buf)=>{ if(c!==client) return; let m; try{ m=JSON.parse(buf.toString()) }catch(e){ return } onData(m) });
+ c.on('reconnect',()=>{ if(c===client&&joined){ show('vWait'); waitMsg('📡','Переподключение…','Связь прервалась, пробуем снова.') } });
+ c.on('error',()=>{});
+ connTimer=setTimeout(()=>{ if(!c.connected && !joined) nextBroker('Нет связи. Включите мобильный интернет или другой Wi-Fi и попробуйте ещё раз.') },8000);
 }
-function fail(t){ joined=false; try{ client&&client.end(true) }catch(e){} show('vJoin'); err(t); $('joinBtn').disabled=false; $('joinBtn').textContent='Войти в игру' }
+function nextBroker(msg){ if(tried<BROKERS.length){ bi=(bi+1)%BROKERS.length; $('joinBtn').textContent='Пробуем другой сервер…'; connect(); } else fail(msg); }
+function fail(t){ joined=false; tried=0; clearTimeout(connTimer); clearTimeout(joinTimer); try{ client&&client.end(true) }catch(e){} show('vJoin'); err(t); $('joinBtn').disabled=false; $('joinBtn').textContent='Войти в игру' }
 
+// Safety net: while waiting, ask the board every 5 s to resend the current state (a lost message never leaves anyone stuck).
+let lastRes=0;
+setInterval(()=>{ if(joined && client && client.connected && !$('vQ').classList.contains('on') && !$('vEnd').classList.contains('on')) up({type:'sync'}); },5000);
+function setTeam(t){ if(!t) return; myTeam=t; $('me').textContent=t.emoji+' '+me.name; document.body.style.background='linear-gradient(180deg,'+t.color+',#0b0f2e)'; }
 function onData(m){
- const t=TEAMS[me.team];
- if(m.type==='joined'){ joined=true; clearTimeout(joinTimer); $('me').textContent=t.emoji+' '+m.name; show('vWait'); waitMsg(t.emoji,'Вы в игре!','Команда «'+t.name+'». Смотрите на доску — скоро начнём.'); }
- if(m.type==='wait'){ show('vWait'); waitMsg(t.emoji,'Вы в игре!',m.text); }
- if(m.type==='question'){ $('qn').textContent=`Вопрос ${m.n} / ${m.total}`; show('vQ'); }
+ if(m.type==='joined'){ joined=true; clearTimeout(joinTimer); me.name=m.name; $('me').textContent=m.name; show('vWait');
+  if(m.team){ setTeam(m.team); waitMsg(m.team.emoji,'Вы в игре!','Ваша команда — «'+m.team.name+'». Смотрите на доску.'); }
+  else waitMsg('🎲','Вы в игре!','Ждём, когда ведущий распределит команды…'); }
+ if(m.type==='team'){ setTeam(m.team); show('vWait'); waitMsg(m.team.emoji,'Ваша команда — «'+m.team.name+'»!','Найдите своих по команде на доске. Скоро первый вопрос.'); if(navigator.vibrate) navigator.vibrate([60,60,60]); }
+ if(m.type==='wait'){ show('vWait'); waitMsg(myTeam?myTeam.emoji:'🎲','Вы в игре!',m.text); }
+ if(m.type==='question'){ if(m.team) setTeam(m.team); $('qn').textContent=`Вопрос ${m.n} / ${m.total}`; show('vQ'); }
  if(m.type==='locked'){ show('vWait'); waitMsg('🔒','Ответ принят!','Ждём остальных…'); }
- if(m.type==='result'){
-  $('resTitle').textContent=!m.answered?'⏱ Время вышло':(m.ok?'✅ Верно!':'❌ Неверно');
+ if(m.type==='rejoin'){ up({type:'join',name:me.name}); return; }
+ if(m.type==='result'){ if(m.n===lastRes && $('vRes').classList.contains('on')) return; lastRes=m.n;
+  $('resTitle').textContent=!m.answered?'⏱ Нет ответа':(m.ok?'✅ Верно!':'❌ Неверно');
   $('resTitle').style.color=m.ok?'#7CFC9A':'#ffd23f';
+  if(m.dissent){
+   $('resNote').innerHTML='⚠️ Вы ответили <b>не так, как большинство</b> вашей команды.<br>Вы: '+esc(m.mine)+'<br>Команда: '+esc(m.teamAns)+
+    (m.ok?'<br>✅ Ваш ответ верный — он засчитан вам лично.':'');
+   $('resNote').style.display='block'; if(navigator.vibrate) navigator.vibrate([120,80,120]);
+  } else $('resNote').style.display='none';
+  const t=m.team||myTeam;
+  $('resTeam').innerHTML=!t?'':(!m.teamAns?t.emoji+' Команда «'+esc(t.name)+'» не ответила — ракета стоит на месте.':
+   t.emoji+' Ответ команды: '+esc(m.teamAns)+(m.teamOk?' ✅<br>Ракета летит вперёд: +1':' ❌<br>Ракета откатилась назад: −1')+(m.tie?'<br><small>Голоса разделились поровну — засчитан вариант, который выбрали первым.</small>':'')+'<br>Очки команды: '+m.teamPts);
+  $('resTeam').style.display=t?'block':'none';
   $('resCard').innerHTML='<b>Правильный ответ:</b> '+esc(m.correct)+'<br><br>💡 '+esc(m.why);
-  $('resScore').textContent=`Ваши верные ответы: ${m.score} из ${m.n}`;
-  if(m.ok&&navigator.vibrate) navigator.vibrate([40,40,40]);
+  $('resScore').textContent=`Ваши личные верные ответы: ${m.score} из ${m.n}`;
+  if(m.ok&&!m.dissent&&navigator.vibrate) navigator.vibrate([40,40,40]);
   show('vRes');
  }
- if(m.type==='end'){
-  $('endTitle').textContent=`${m.team.emoji} ${m.team.name}: ${m.place} место`;
-  $('endCard').innerHTML=`Ваши верные ответы: <b>${m.score} из ${m.total}</b><br>Результат виден только вам.`;
-  show('vEnd');
+ if(m.type==='end'){ if($('vEnd').classList.contains('on')) return;
+  $('endTitle').textContent=m.team?`${m.team.emoji} ${m.team.name}: ${m.place===1?'🏆 1 место!':m.place+' место'}`:'Финиш!';
+  $('endCard').innerHTML=`Ваши личные верные ответы: <b>${m.score} из ${m.total}</b>`+(m.team?`<br>Очки команды: <b>${m.teamPts}</b>`:'')+'<br><small>Личный результат виден только вам.</small>';
+  $('endList').innerHTML=(m.review||[]).map((r,i)=>`<div class="rv${r.ok?'':' bad'}"><div class="qq">${r.ok?'✅':'❌'} ${i+1}. ${esc(r.q)}</div>
+   <div>Ваш ответ: <b>${r.mine?esc(r.mine):'нет ответа'}</b></div>
+   ${r.ok?'':`<div>Правильный ответ: <b>${esc(r.correct)}</b></div>`}
+   ${r.team?`<div>Команда выбрала: ${esc(r.team)}</div>`:''}
+   <div class="w">💡 ${esc(r.why)}</div></div>`).join('');
+  show('vEnd'); window.scrollTo(0,0);
  }
 }
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}

@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
 <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="questions.js?v=3"></script>
+<script src="questions.js?v=4"></script>
 <style>
 :root{--ink:#0b0f2e;--gold:#ffd23f}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -24,7 +24,7 @@ h1{font-size:clamp(28px,4vw,56px);font-weight:900;text-shadow:0 4px 0 rgba(0,0,0
 .sub{font-size:clamp(16px,1.6vw,24px);opacity:.85}
 .glass{background:rgba(255,255,255,.1);border:2px solid rgba(255,255,255,.25);border-radius:22px;backdrop-filter:blur(8px);box-shadow:0 18px 40px rgba(0,0,0,.35)}
 .btn{font:inherit;font-weight:900;font-size:clamp(18px,1.8vw,26px);color:var(--ink);background:linear-gradient(180deg,#fff3a8,var(--gold));border:0;border-radius:18px;padding:.6em 1.4em;cursor:pointer;
- box-shadow:0 6px 0 #c49400,0 14px 24px rgba(0,0,0,.35);transition:transform .1s}
+ box-shadow:0 6px 0 #c49400,0 14px 24px rgba(0,0,0,.35);transition:transform .1s;white-space:nowrap}
 .btn:active{transform:translateY(5px);box-shadow:0 1px 0 #c49400}
 .btn.ghost{background:rgba(255,255,255,.15);color:#fff;box-shadow:0 5px 0 rgba(0,0,0,.3)}
 /* lobby */
@@ -41,9 +41,12 @@ h1{font-size:clamp(28px,4vw,56px);font-weight:900;text-shadow:0 4px 0 rgba(0,0,0
 .team h3{font-size:20px;margin-bottom:8px}
 .chip{display:inline-block;background:rgba(255,255,255,.18);border-radius:20px;padding:5px 14px;margin:4px;font-size:clamp(15px,1.4vw,20px);font-weight:800}
 @keyframes pop{from{transform:scale(0)}}
+.pool{margin-top:2vh;padding:12px 16px;min-height:64px}
+.pool b{font-size:18px;opacity:.85;margin-right:8px}
+.chip.new{animation:pop .4s cubic-bezier(.3,1.6,.5,1)}
 /* question */
 .top{display:flex;justify-content:space-between;align-items:center;gap:20px}
-.pill{background:rgba(255,255,255,.15);border-radius:30px;padding:8px 18px;font-weight:800;font-size:clamp(16px,1.6vw,22px)}
+.pill{white-space:nowrap;background:rgba(255,255,255,.15);border-radius:30px;padding:8px 18px;font-weight:800;font-size:clamp(16px,1.6vw,22px)}
 #timer{background:var(--gold);color:var(--ink)}
 .qtext{margin:2.5vh 0;background:linear-gradient(180deg,#fff,#eef1ff);color:var(--ink);border-radius:22px;padding:2.2vh 2vw;font-size:clamp(22px,2.6vw,40px);font-weight:800;box-shadow:0 8px 0 rgba(0,0,0,.2),0 18px 40px rgba(0,0,0,.35)}
 .opts{display:grid;grid-template-columns:1fr 1fr;gap:1.6vh 1.4vw}
@@ -64,11 +67,20 @@ h1{font-size:clamp(28px,4vw,56px);font-weight:900;text-shadow:0 4px 0 rgba(0,0,0
 .lane b{position:absolute;left:16px;top:50%;transform:translateY(-50%);font-size:clamp(14px,1.4vw,20px);z-index:2}
 .rocket{position:absolute;top:50%;transform:translate(-50%,-50%);font-size:clamp(26px,3.2vw,44px);transition:left 1.6s cubic-bezier(.3,.9,.3,1);filter:drop-shadow(0 0 10px rgba(255,180,80,.8))}
 .rocket span{display:inline-block;transform:rotate(135deg) scaleX(-1)}
+.pick{position:absolute;right:58px;top:50%;transform:translateY(-50%);font-weight:900;font-size:clamp(14px,1.4vw,20px);background:rgba(0,0,0,.35);border-radius:14px;padding:2px 12px;display:none;font-style:normal}
+.reveal .pick{display:block;animation:in .5s}
+.pts{opacity:.75;font-weight:700;margin-left:10px}
 .moon{position:absolute;right:-6px;top:50%;transform:translateY(-50%);font-size:clamp(26px,3vw,42px)}
 /* end */
-.podium{display:flex;align-items:flex-end;justify-content:center;gap:2vw;margin:4vh 0 2vh;flex:1}
-.step{width:16vw;border-radius:20px 20px 0 0;text-align:center;padding-top:14px;font-weight:900;font-size:clamp(18px,2vw,30px);animation:rise .9s cubic-bezier(.3,1.4,.5,1) both}
-@keyframes rise{from{transform:scaleY(0);transform-origin:bottom}}
+.winner{text-align:center;margin:1vh 0 2.5vh}
+.winner .members{font-size:clamp(18px,2vw,30px);font-weight:800;margin-top:1vh;color:var(--gold)}
+.board{display:grid;gap:12px;flex:1;min-height:0;align-content:start;overflow:auto}
+.row{display:grid;grid-template-columns:70px 1fr auto;align-items:center;gap:16px;padding:12px 20px;border-radius:20px;animation:rise .6s cubic-bezier(.3,1.4,.5,1) both}
+.row .medal{font-size:clamp(30px,3vw,46px);text-align:center}
+.row h3{font-size:clamp(20px,2vw,30px);margin-bottom:4px}
+.row .score{font-size:clamp(22px,2.4vw,36px);font-weight:900}
+.row.first{box-shadow:0 0 40px rgba(255,210,63,.55);border-color:var(--gold)!important}
+@keyframes rise{from{opacity:0;transform:translateY(30px)}}
 .review{font-size:clamp(15px,1.5vw,22px);line-height:1.5}
 #fx{position:fixed;inset:0;pointer-events:none;z-index:99}
 .conf{position:absolute;width:12px;height:18px;border-radius:3px;animation:fall linear forwards}
@@ -87,11 +99,13 @@ h1{font-size:clamp(28px,4vw,56px);font-weight:900;text-shadow:0 4px 0 rgba(0,0,0
  <div class="lobby">
   <div class="qrcol"><div id="qr"></div><div id="url"></div></div>
   <div style="display:flex;flex-direction:column;min-height:0">
-   <div class="steps">1. Отсканируйте QR-код камерой телефона<br>2. Введите имя или ник<br>3. Выберите команду</div>
+   <div class="steps">1. Отсканируйте QR-код камерой телефона<br>2. Введите имя или ник<br>3. Команды распределит ведущий 🎲</div>
    <div class="sub" style="margin-top:2vh">Или откройте ссылку и введите код комнаты:</div>
    <div class="code" id="code">····</div>
+   <div class="pool glass" id="pool"></div>
    <div class="teams" id="lobbyTeams"></div>
    <div style="margin-top:auto;display:flex;gap:16px;align-items:center;padding-top:2vh">
+    <button class="btn ghost" id="mixBtn">🎲 Распределить</button>
     <button class="btn" id="startBtn">▶ Начать</button>
     <span class="pill" id="countPill">Игроков: 0</span>
     <span class="sub" id="status">Подключение…</span>
@@ -119,18 +133,19 @@ h1{font-size:clamp(28px,4vw,56px);font-weight:900;text-shadow:0 4px 0 rgba(0,0,0
 
 <!-- END -->
 <section class="screen" id="sEnd">
- <h1 style="text-align:center">🌕 Финиш!</h1>
- <div class="podium" id="podium"></div>
- <div class="glass review" id="review" style="padding:2vh 2vw"></div>
+ <div class="winner" id="winner"></div>
+ <div class="board" id="board"></div>
+ <div class="glass review" id="review" style="padding:1.6vh 2vw;margin-top:2vh"></div>
 </section>
 
 <script>
 const TEAMS=[{id:0,name:'Совы',emoji:'🦉',color:'#7b61ff'},{id:1,name:'Лисы',emoji:'🦊',color:'#e8590c'},{id:2,name:'Кометы',emoji:'☄️',color:'#1d72d8'},{id:3,name:'Тигры',emoji:'🐯',color:'#2a9d4b'}];
 const SHAPES=['▲','◆','●','■'], LET=['A','B','C','D'], TIME=30;
 const $=id=>document.getElementById(id);
-const players={};            // name -> {pid, team, score}
-let qi=-1, phase='lobby', answers={}, timerId=null, left=TIME, progress=[0,0,0,0], stats=[];
+const players={};            // name -> {pid, team (-1 = not assigned yet), score, hist:[]}
+let qi=-1, phase='lobby', answers={}, ansAt={}, timerId=null, left=TIME, points=[0,0,0,0], stats=[], assigned=false;
 let order=[];                // shuffled option order per question
+let teamPick=[];             // per team for the current question: {k, delta, tie} or null
 const Q=window.QUESTIONS;
 
 // ---------- stars
@@ -147,111 +162,171 @@ function toast(t){$('toast').textContent=t;$('toast').style.display='block';setT
 
 // ---------- connection (MQTT relay over secure WebSocket: works through school Wi-Fi and mobile data)
 const BROKERS=['wss://broker.hivemq.com:8884/mqtt','wss://broker.emqx.io:8084/mqtt'];
-const VER='v3';
+const VER='v4';
 const CHARS='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-let code='',client=null,bi=0;
+let code=[...Array(4)].map(()=>CHARS[Math.floor(Math.random()*CHARS.length)]).join('');
+const clients=[], up=[false,false], via={};     // via[pid] = index of the relay this phone uses
 function topic(t){ return 'agis-vibequiz/'+code+'/'+t }
+// The board listens on BOTH relays at once, so a phone can join through whichever one works on its network.
 function connectBroker(){
- code=[...Array(4)].map(()=>CHARS[Math.floor(Math.random()*CHARS.length)]).join('');
- client=mqtt.connect(BROKERS[bi],{connectTimeout:8000,reconnectPeriod:2000,clean:true});
- let ok=false;
- client.on('connect',()=>{ ok=true;
-  client.subscribe(topic('up'),{qos:1});
-  $('code').textContent=code; $('status').textContent='Комната открыта ✓ · '+VER+' · сервер '+(bi+1);
-  const url=new URL('play.html',location.href); url.searchParams.set('room',code); url.searchParams.set('b',bi); url.searchParams.set('v',VER);
-  $('qr').innerHTML=''; new QRCode($('qr'),{text:url.href,width:512,height:512,correctLevel:QRCode.CorrectLevel.M}); $('url').textContent=url.href;
-  // phones that were already in the game: tell them we are back
-  for(const n in players) sendState(n);
+ $('code').textContent=code;
+ BROKERS.forEach((url,i)=>{
+  const c=mqtt.connect(url,{connectTimeout:8000,reconnectPeriod:2000,clean:true}); clients[i]=c;
+  c.on('connect',()=>{ const first=!up.some(Boolean); up[i]=true;
+   c.subscribe(topic('up'),{qos:1}); updateStatus();
+   if(first){
+    const url=new URL('play.html',location.href); url.searchParams.set('room',code); url.searchParams.set('b',i); url.searchParams.set('v',VER);
+    $('qr').innerHTML=''; new QRCode($('qr'),{text:url.href,width:512,height:512,correctLevel:QRCode.CorrectLevel.M}); $('url').textContent=url.href;
+   }
+   for(const n in players) if(via[players[n].pid]===i) sendState(n);   // phones on this relay: we are back
+  });
+  c.on('message',(t,buf)=>{ let m; try{ m=JSON.parse(buf.toString()) }catch(e){ return } if(m&&m.pid){ via[m.pid]=i; onData(m.pid,m); } });
+  c.on('close',()=>{ if(up[i]){ up[i]=false; updateStatus(); } });
+  c.on('error',()=>{});
  });
- client.on('message',(t,buf)=>{ let m; try{ m=JSON.parse(buf.toString()) }catch(e){ return } if(m&&m.pid) onData(m.pid,m); });
- client.on('reconnect',()=>{ $('status').textContent='Переподключение…' });
- client.on('error',()=>{});
- setTimeout(()=>{ if(!ok && phase==='lobby' && bi<BROKERS.length-1){ client.end(true); bi++; connectBroker(); } else if(!ok){ $('status').textContent='Нет связи с телефонами'; toast('Нет связи. Проверьте интернет на ноутбуке.'); } },9000);
+ setTimeout(()=>{ if(!up.some(Boolean)){ $('status').textContent='Нет связи с телефонами'; toast('Нет связи. Проверьте интернет на ноутбуке.'); } },10000);
 }
-function send(pid,m){ try{ if(pid&&client&&client.connected) client.publish(topic('down/'+pid),JSON.stringify(m),{qos:1}) }catch(e){} }
+function updateStatus(){ const n=up.filter(Boolean).length;
+ $('status').textContent=n?'Комната открыта ✓ · '+VER+' · связь '+n+'/'+BROKERS.length:'Переподключение…'; }
+// Send through every relay: the phone hears it on the one it uses, and a relay that is reconnecting delivers it once it is back.
+function send(pid,m){ if(!pid) return; const t=topic('down/'+pid), body=JSON.stringify(m);
+ clients.forEach(c=>{ try{ if(c) c.publish(t,body,{qos:1}) }catch(e){} }); }
 function broadcast(fn){ for(const n in players){ const p=players[n]; send(p.pid, fn(n,p)); } }
 
 function onData(pid,m){
  if(m.type==='join'){
-  const name=String(m.name||'').trim().slice(0,16)||'Игрок'; const team=Math.max(0,Math.min(3,+m.team||0));
+  const name=String(m.name||'').trim().slice(0,16)||'Игрок';
   let key=name; if(players[key]&&players[key].pid!==pid){ let i=2; while(players[name+' '+i]&&players[name+' '+i].pid!==pid) i++; key=name+' '+i; }
-  const isNew=!players[key]; players[key]=Object.assign(players[key]||{score:0},{pid,team});
-  if(isNew) sfx.join();
-  send(pid,{type:'joined',name:key,team:TEAMS[team]}); sendState(key); renderLobby(); updateAnswered(); return; }
+  const isNew=!players[key]; players[key]=Object.assign(players[key]||{score:0,team:-1,hist:[]},{pid});
+  if(isNew){ sfx.join(); if(assigned) players[key].team=smallestTeam(); }   // late arrivals go to the smallest team
+  send(pid,{type:'joined',name:key,team:teamInfo(players[key].team)}); sendState(key); renderLobby(); updateAnswered(); return; }
+ if(m.type==='sync'){ const name=Object.keys(players).find(n=>players[n].pid===pid); if(name) sendState(name); else send(pid,{type:'rejoin'}); return; }
  if(m.type==='answer' && phase==='question'){
   const name=Object.keys(players).find(n=>players[n].pid===pid); if(!name||answers[name]!==undefined) return;
-  answers[name]=+m.choice; send(pid,{type:'locked'}); updateAnswered();
+  const c=+m.choice; if(!(c>=0&&c<4)) return;
+  answers[name]=c; ansAt[name]=Date.now(); send(pid,{type:'locked'}); updateAnswered();
   if(Object.keys(answers).length>=activeCount()) reveal();
  }
 }
 function activeCount(){ return Object.keys(players).length }
+function teamInfo(t){ return t>=0?{name:TEAMS[t].name,emoji:TEAMS[t].emoji,color:TEAMS[t].color}:null }
+function members(t){ return Object.keys(players).filter(n=>players[n].team===t) }
+function activeTeams(){ return TEAMS.filter(t=>members(t.id).length) }
+function smallestTeam(){ const c=TEAMS.map(t=>members(t.id).length), min=Math.min(...c); const opts=c.map((v,i)=>v===min?i:-1).filter(i=>i>=0); return opts[Math.floor(Math.random()*opts.length)] }
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]] } return a }
 function sendState(name){ const p=players[name];
- if(phase==='lobby') send(p.pid,{type:'wait',text:'Вы в игре! Ждём начала…'});
- if(phase==='question') send(p.pid,answers[name]!==undefined?{type:'locked'}:{type:'question',n:qi+1,total:Q.length,count:4});
+ if(phase==='lobby') send(p.pid,p.team>=0?{type:'team',team:teamInfo(p.team)}:{type:'wait',text:'Ждём, когда ведущий распределит команды…'});
+ if(phase==='question') send(p.pid,answers[name]!==undefined?{type:'locked'}:{type:'question',n:qi+1,total:Q.length,count:4,team:teamInfo(p.team)});
  if(phase==='reveal') sendResult(name);
  if(phase==='end') sendEnd(name);
 }
 
-// ---------- lobby
-function renderLobby(){
- $('lobbyTeams').innerHTML=TEAMS.map(t=>`<div class="team glass" style="border-color:${t.color}"><h3>${t.emoji} ${t.name}</h3>${
-   Object.keys(players).filter(n=>players[n].team===t.id).map(n=>`<span class="chip">${esc(n)}</span>`).join('')}</div>`).join('');
- $('countPill').textContent='Игроков: '+Object.keys(players).length;
+// ---------- lobby: random, equal teams
+function assignRandom(){
+ const names=shuffle(Object.keys(players)), off=Math.floor(Math.random()*4);
+ names.forEach((n,i)=>players[n].team=(i+off)%4);      // team sizes differ by at most 1
+ assigned=true; sfx.reveal(); renderLobby(true);
+ for(const n in players) send(players[n].pid,{type:'team',team:teamInfo(players[n].team)});
 }
-function esc(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function renderLobby(anim){
+ const pool=Object.keys(players).filter(n=>players[n].team<0);
+ $('pool').innerHTML='<b>⏳ Ждут распределения:</b>'+(pool.length?pool.map(n=>`<span class="chip new">${esc(n)}</span>`).join(''):'<span class="sub">'+(assigned?'все в командах ✓':'пока никого')+'</span>');
+ $('lobbyTeams').innerHTML=TEAMS.map(t=>`<div class="team glass" style="border-color:${t.color}"><h3>${t.emoji} ${t.name} <span class="sub">${members(t.id).length||''}</span></h3>${
+   members(t.id).map(n=>`<span class="chip${anim?' new':''}">${esc(n)}</span>`).join('')}</div>`).join('');
+ $('countPill').textContent='Игроков: '+Object.keys(players).length;
+ $('mixBtn').textContent=assigned?'🎲 Перемешать':'🎲 Распределить';
+}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 
 // ---------- game
+function pos(t){ return 16+76*points[t]/Q.length }
 function renderRace(){
- $('race').innerHTML=TEAMS.map(t=>`<div class="lane" style="border-color:${t.color}55"><b>${t.emoji} ${t.name}</b>
-  <div class="rocket" id="rk${t.id}" style="left:${16+progress[t.id]*0.76}%"><span>🚀</span></div><div class="moon">🌕</div></div>`).join('');
+ $('race').innerHTML=activeTeams().map(t=>`<div class="lane" style="border-color:${t.color}55"><b>${t.emoji} ${t.name}<span class="pts" id="pt${t.id}">${points[t.id]}</span></b>
+  <div class="rocket" id="rk${t.id}" style="left:${pos(t.id)}%"><span>🚀</span></div><i class="pick" id="pk${t.id}"></i><div class="moon">🌕</div></div>`).join('');
 }
 function nextQ(){
  qi++; if(qi>=Q.length) return endGame();
- phase='question'; answers={}; left=TIME;
- const q=Q[qi]; order=[0,1,2,3].sort(()=>Math.random()-.5);
+ phase='question'; answers={}; ansAt={}; teamPick=[]; left=TIME;
+ const q=Q[qi]; order=shuffle([0,1,2,3]);
  $('qNum').textContent=`Вопрос ${qi+1} / ${Q.length}`; $('qText').textContent=q.q;
  $('opts').innerHTML=order.map((oi,k)=>`<div class="opt c${k}" data-o="${oi}"><span class="sh">${SHAPES[k]}</span>${LET[k]}. ${esc(q.a[oi])}<span class="bar" id="bar${k}"></span></div>`).join('');
  $('sQ').classList.remove('reveal'); $('why').textContent=''; $('revealBtn').style.display=''; $('nextBtn').style.display='none';
  show('sQ'); renderRace(); updateAnswered();
- broadcast(()=>({type:'question',n:qi+1,total:Q.length,count:4}));
+ broadcast((n,p)=>({type:'question',n:qi+1,total:Q.length,count:4,team:teamInfo(p.team)}));
  clearInterval(timerId); timerId=setInterval(()=>{ left--; $('timer').textContent='⏱ '+left; if(left<=5&&left>0) sfx.tick(); if(left<=0) reveal(); },1000);
  $('timer').textContent='⏱ '+left;
 }
 function updateAnswered(){ $('answered').textContent=`Ответили: ${Object.keys(answers).length} / ${activeCount()}` }
+function optText(o){ return LET[order.indexOf(o)]+'. '+Q[qi].a[o] }   // as shown on the board for this question
 function reveal(){
  if(phase!=='question') return; phase='reveal'; clearInterval(timerId); sfx.reveal();
  const q=Q[qi], correctK=order.indexOf(q.correct);
  const counts=[0,0,0,0]; Object.values(answers).forEach(k=>counts[k]++);
  [...$('opts').children].forEach((el,k)=>{ if(k===correctK) el.classList.add('ok'); $('bar'+k).textContent=counts[k]+' 👤'; });
  $('sQ').classList.add('reveal'); $('why').textContent='💡 '+q.why;
- // team progress: % of team members who answered correctly
- const step=100/(Q.length*0.75);
- TEAMS.forEach(t=>{ const members=Object.keys(players).filter(n=>players[n].team===t.id); if(!members.length) return;
-   const ok=members.filter(n=>answers[n]===correctK).length; progress[t.id]=Math.min(100,progress[t.id]+step*ok/members.length); });
- Object.keys(answers).forEach(n=>{ if(answers[n]===correctK) players[n].score++; });
- stats.push({q:q.q,pct:Object.keys(answers).length?Math.round(100*counts[correctK]/Object.keys(answers).length):null});
- requestAnimationFrame(()=>TEAMS.forEach(t=>{ const r=$('rk'+t.id); if(r) r.style.left=(16+progress[t.id]*0.76)+'%'; }));
+ // team answer = the option most members chose; a tie goes to the option that was chosen first
+ TEAMS.forEach(t=>{
+  const mem=members(t.id); if(!mem.length){ teamPick[t.id]=null; return; }
+  const votes=[0,0,0,0], first=[Infinity,Infinity,Infinity,Infinity];
+  mem.forEach(n=>{ const a=answers[n]; if(a!==undefined){ votes[a]++; first[a]=Math.min(first[a],ansAt[n]); } });
+  const max=Math.max(...votes);
+  if(!max){ teamPick[t.id]={k:null,delta:0,tie:false}; return; }       // nobody in the team answered: the rocket stays
+  let best=-1; for(let k=0;k<4;k++) if(votes[k]===max && (best<0||first[k]<first[best])) best=k;
+  const delta=best===correctK?1:-1;
+  points[t.id]=Math.max(0,Math.min(Q.length,points[t.id]+delta));
+  teamPick[t.id]={k:best,delta,tie:votes.filter(v=>v===max).length>1};
+ });
+ // personal record: every correct answer counts for the person, even if the team chose otherwise
+ Object.keys(players).forEach(n=>{ const p=players[n], a=answers[n], tp=p.team>=0?teamPick[p.team]:null;
+  const mine=a===undefined?null:order[a], team=tp&&tp.k!==null?order[tp.k]:null;
+  if(mine===q.correct) p.score++;
+  p.hist[qi]={mine,team,mineT:mine===null?null:optText(mine),teamT:team===null?null:optText(team)};
+ });
+ const nAns=Object.keys(answers).length;
+ stats.push({q:q.q,pct:nAns?Math.round(100*counts[correctK]/nAns):null});
+ requestAnimationFrame(()=>activeTeams().forEach(t=>{ const r=$('rk'+t.id), tp=teamPick[t.id], pk=$('pk'+t.id);
+  if(r) r.style.left=pos(t.id)+'%'; $('pt'+t.id).textContent=points[t.id];
+  pk.textContent=!tp||tp.k===null?'нет ответа':LET[tp.k]+(tp.delta>0?' ✅ +1':' ❌ −1'); pk.style.color=!tp||tp.k===null?'#fff':(tp.delta>0?'#7CFC9A':'#ffb3b3'); }));
  if(counts[correctK]) confetti(40);
  broadcast(n=>resultMsg(n));
  $('revealBtn').style.display='none'; $('nextBtn').style.display=''; $('nextBtn').textContent=qi+1<Q.length?'Дальше ▶':'Финиш 🌕';
 }
-function resultMsg(name){ const q=Q[qi], correctK=order.indexOf(q.correct), mine=answers[name];
- return {type:'result',ok:mine===correctK,answered:mine!==undefined,correct:LET[correctK]+'. '+q.a[q.correct],why:q.why,score:players[name].score,n:qi+1}; }
+function resultMsg(name){ const q=Q[qi], p=players[name], h=p.hist[qi]||{mine:null,team:null}, tp=p.team>=0?teamPick[p.team]:null;
+ return {type:'result',n:qi+1,total:Q.length,answered:h.mine!==null,ok:h.mine===q.correct,mine:h.mineT||null,
+  teamAns:h.teamT||null,teamOk:h.team===q.correct,dissent:h.mine!==null&&h.team!==null&&h.mine!==h.team,tie:!!(tp&&tp.tie),
+  delta:tp?tp.delta:0,team:teamInfo(p.team),teamPts:p.team>=0?points[p.team]:0,correct:optText(q.correct),why:q.why,score:p.score}; }
 function sendResult(name){ send(players[name].pid,resultMsg(name)) }
-function rankings(){ return TEAMS.filter(t=>Object.values(players).some(p=>p.team===t.id)).sort((a,b)=>progress[b.id]-progress[a.id]) }
+function avgScore(t){ const m=members(t); return m.length?m.reduce((s,n)=>s+players[n].score,0)/m.length:0 }
+function better(a,b){ return points[a.id]-points[b.id] || avgScore(a.id)-avgScore(b.id) }
+function rankings(){ return activeTeams().sort((a,b)=>better(b,a)) }
+function placeOf(t){ return 1+activeTeams().filter(x=>better(x,t)>0).length }
 function endGame(){
- phase='end'; show('sEnd'); sfx.win(); confetti(220);
- const r=rankings(), H=['34vh','26vh','19vh','13vh'], ORD=[1,0,2,3];
- $('podium').innerHTML=ORD.filter(i=>r[i]).map(i=>`<div class="step" style="height:${H[i]};background:linear-gradient(180deg,${r[i].color},${r[i].color}88)">${['🥇','🥈','🥉','4'][i]}<br>${r[i].emoji} ${r[i].name}<br><span style="font-size:.7em">${Math.round(progress[r[i].id])}%</span></div>`).join('');
+ phase='end'; show('sEnd'); sfx.win(); confetti(260);
+ const r=rankings(); if(!r.length){ $('winner').innerHTML='<h1>🌕 Финиш!</h1>'; $('board').innerHTML=''; }
+ else{
+  const top=r.filter(t=>placeOf(t)===1);
+  $('winner').innerHTML=`<h1>🏆 ${top.length>1?'Победители — команды ':'Побеждает команда '}${top.map(t=>t.emoji+' '+t.name).join(' и ')}!</h1>
+   <div class="members">${top.map(t=>members(t.id).map(esc).join(', ')).join(' · ')}</div>`;
+  $('board').innerHTML=r.map((t,i)=>{ const pl=placeOf(t);
+   return `<div class="row glass${pl===1?' first':''}" style="border-color:${t.color};background:linear-gradient(90deg,${t.color}66,rgba(255,255,255,.06));animation-delay:${.15*i}s">
+    <div class="medal">${['🥇','🥈','🥉','4'][pl-1]}</div>
+    <div><h3>${t.emoji} ${t.name}</h3><div>${members(t.id).map(n=>`<span class="chip">${esc(n)}</span>`).join('')}</div></div>
+    <div class="score">${points[t.id]} 🚀</div></div>`; }).join('');
+ }
  const hard=stats.filter(s=>s.pct!==null).sort((a,b)=>a.pct-b.pct).slice(0,3);
- $('review').innerHTML='<b>🔁 Давайте повторим самые сложные вопросы:</b><br>'+(hard.length?hard.map(s=>`• ${esc(s.q)} — верно ответили ${s.pct}%`).join('<br>'):'Ответов пока не было.');
+ $('review').innerHTML='<b>🔁 Повторим самые сложные вопросы</b> (разбор всех ответов — на телефонах):<br>'+(hard.length?hard.map(s=>`• ${esc(s.q)} — верно ответили ${s.pct}%`).join('<br>'):'Ответов пока не было.');
  broadcast(n=>endMsg(n));
 }
-function endMsg(name){ const r=rankings(), t=players[name].team; return {type:'end',place:r.findIndex(x=>x.id===t)+1,team:TEAMS[t],score:players[name].score,total:Q.length} }
+function endMsg(name){ const p=players[name], t=p.team;
+ return {type:'end',place:t>=0?placeOf(TEAMS[t]):null,team:teamInfo(t),teamPts:t>=0?points[t]:0,score:p.score,total:Q.length,
+  review:Q.map((q,i)=>{ const h=p.hist[i]; return {q:q.q,mine:h?h.mineT:null,ok:!!h&&h.mine===q.correct,team:h&&h.mine!==h.team?h.teamT:null,correct:q.a[q.correct],why:q.why}; })}; }
 function sendEnd(name){ send(players[name].pid,endMsg(name)) }
 function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on',s.id===id)) }
 
-$('startBtn').onclick=()=>{ if(!Object.keys(players).length && !confirm('Пока никто не подключился. Начать всё равно?')) return; nextQ(); };
+$('mixBtn').onclick=()=>{ if(!Object.keys(players).length) return toast('Пока никто не подключился.'); assignRandom(); };
+$('startBtn').onclick=()=>{ if(!Object.keys(players).length && !confirm('Пока никто не подключился. Начать всё равно?')) return;
+ if(!assigned && Object.keys(players).length) assignRandom();
+ $('mixBtn').style.display='none'; nextQ(); };
 $('revealBtn').onclick=reveal; $('nextBtn').onclick=nextQ;
 document.addEventListener('keydown',e=>{ if(e.key==='n'||e.key==='N'||e.key==='ArrowRight'){ if(phase==='reveal') nextQ(); else if(phase==='question') reveal(); } });
 
