@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ракетная гонка · вайб-кодинг</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
-<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="questions.js"></script>
 <style>
@@ -126,7 +126,7 @@ h1{font-size:clamp(28px,4vw,56px);font-weight:900;text-shadow:0 4px 0 rgba(0,0,0
 const TEAMS=[{id:0,name:'Совы',emoji:'🦉',color:'#7b61ff'},{id:1,name:'Лисы',emoji:'🦊',color:'#e8590c'},{id:2,name:'Кометы',emoji:'☄️',color:'#1d72d8'},{id:3,name:'Тигры',emoji:'🐯',color:'#2a9d4b'}];
 const SHAPES=['▲','◆','●','■'], LET=['A','B','C','D'], TIME=30;
 const $=id=>document.getElementById(id);
-const players={};            // name -> {conn, team, score}
+const players={};            // name -> {pid, team, score}
 let qi=-1, phase='lobby', answers={}, timerId=null, left=TIME, progress=[0,0,0,0], stats=[];
 let order=[];                // shuffled option order per question
 const Q=window.QUESTIONS;
@@ -143,39 +143,48 @@ function confetti(n=120){const C=['#ffd23f','#ff3d71','#2ec4b6','#7b61ff','#06d6
  d.style.cssText=`left:${Math.random()*100}vw;top:-20px;background:${C[i%C.length]};animation-duration:${2+Math.random()*2}s;animation-delay:${Math.random()*.6}s`;$('fx').appendChild(d);setTimeout(()=>d.remove(),5000)}}
 function toast(t){$('toast').textContent=t;$('toast').style.display='block';setTimeout(()=>$('toast').style.display='none',5000)}
 
-// ---------- connection
+// ---------- connection (MQTT relay over secure WebSocket: works through school Wi-Fi and mobile data)
+const BROKERS=['wss://broker.hivemq.com:8884/mqtt','wss://broker.emqx.io:8084/mqtt'];
 const CHARS='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-let code='',peer;
-function makePeer(){
+let code='',client=null,bi=0;
+function topic(t){ return 'agis-vibequiz/'+code+'/'+t }
+function connectBroker(){
  code=[...Array(4)].map(()=>CHARS[Math.floor(Math.random()*CHARS.length)]).join('');
- peer=new Peer('agisquiz-'+code);
- peer.on('open',()=>{ $('code').textContent=code; $('status').textContent='Комната открыта ✓';
-   const url=new URL('play.html',location.href); url.searchParams.set('room',code);
-   $('qr').innerHTML=''; new QRCode($('qr'),{text:url.href,width:512,height:512,correctLevel:QRCode.CorrectLevel.M}); $('url').textContent=url.href; });
- peer.on('error',e=>{ if(e.type==='unavailable-id'){peer.destroy();makePeer();} else { $('status').textContent='Ошибка связи: '+e.type; toast('Связь с телефонами недоступна. Проверьте интернет или Wi-Fi.'); } });
- peer.on('disconnected',()=>{ $('status').textContent='Переподключение…'; setTimeout(()=>{try{peer.reconnect()}catch(e){}},1500) });
- peer.on('connection',conn=>{ conn.on('data',m=>onData(conn,m)); conn.on('close',()=>{ for(const n in players) if(players[n].conn===conn) players[n].conn=null; }); });
+ client=mqtt.connect(BROKERS[bi],{connectTimeout:8000,reconnectPeriod:2000,clean:true});
+ let ok=false;
+ client.on('connect',()=>{ ok=true;
+  client.subscribe(topic('up'),{qos:1});
+  $('code').textContent=code; $('status').textContent='Комната открыта ✓';
+  const url=new URL('play.html',location.href); url.searchParams.set('room',code); if(bi) url.searchParams.set('b',bi);
+  $('qr').innerHTML=''; new QRCode($('qr'),{text:url.href,width:512,height:512,correctLevel:QRCode.CorrectLevel.M}); $('url').textContent=url.href;
+  // phones that were already in the game: tell them we are back
+  for(const n in players) sendState(n);
+ });
+ client.on('message',(t,buf)=>{ let m; try{ m=JSON.parse(buf.toString()) }catch(e){ return } if(m&&m.pid) onData(m.pid,m); });
+ client.on('reconnect',()=>{ $('status').textContent='Переподключение…' });
+ client.on('error',()=>{});
+ setTimeout(()=>{ if(!ok && phase==='lobby' && bi<BROKERS.length-1){ client.end(true); bi++; connectBroker(); } else if(!ok){ $('status').textContent='Нет связи с телефонами'; toast('Нет связи. Проверьте интернет на ноутбуке.'); } },9000);
 }
-function send(conn,m){ try{ if(conn&&conn.open) conn.send(m) }catch(e){} }
-function broadcast(fn){ for(const n in players){ const p=players[n]; send(p.conn, fn(n,p)); } }
+function send(pid,m){ try{ if(pid&&client&&client.connected) client.publish(topic('down/'+pid),JSON.stringify(m),{qos:1}) }catch(e){} }
+function broadcast(fn){ for(const n in players){ const p=players[n]; send(p.pid, fn(n,p)); } }
 
-function onData(conn,m){
+function onData(pid,m){
  if(m.type==='join'){
   const name=String(m.name||'').trim().slice(0,16)||'Игрок'; const team=Math.max(0,Math.min(3,+m.team||0));
-  const isNew=!players[name]; players[name]=Object.assign(players[name]||{score:0},{conn,team});
+  let key=name; if(players[key]&&players[key].pid!==pid){ let i=2; while(players[name+' '+i]&&players[name+' '+i].pid!==pid) i++; key=name+' '+i; }
+  const isNew=!players[key]; players[key]=Object.assign(players[key]||{score:0},{pid,team});
   if(isNew) sfx.join();
-  send(conn,{type:'joined',name,team:TEAMS[team]}); sendState(name); renderLobby(); updateAnswered();
- }
+  send(pid,{type:'joined',name:key,team:TEAMS[team]}); sendState(key); renderLobby(); updateAnswered(); return; }
  if(m.type==='answer' && phase==='question'){
-  const name=Object.keys(players).find(n=>players[n].conn===conn); if(!name||answers[name]!==undefined) return;
-  answers[name]=+m.choice; send(conn,{type:'locked'}); updateAnswered();
+  const name=Object.keys(players).find(n=>players[n].pid===pid); if(!name||answers[name]!==undefined) return;
+  answers[name]=+m.choice; send(pid,{type:'locked'}); updateAnswered();
   if(Object.keys(answers).length>=activeCount()) reveal();
  }
 }
-function activeCount(){ return Object.values(players).filter(p=>p.conn&&p.conn.open).length }
+function activeCount(){ return Object.keys(players).length }
 function sendState(name){ const p=players[name];
- if(phase==='lobby') send(p.conn,{type:'wait',text:'Вы в игре! Ждём начала…'});
- if(phase==='question') send(p.conn,answers[name]!==undefined?{type:'locked'}:{type:'question',n:qi+1,total:Q.length,count:4});
+ if(phase==='lobby') send(p.pid,{type:'wait',text:'Вы в игре! Ждём начала…'});
+ if(phase==='question') send(p.pid,answers[name]!==undefined?{type:'locked'}:{type:'question',n:qi+1,total:Q.length,count:4});
  if(phase==='reveal') sendResult(name);
  if(phase==='end') sendEnd(name);
 }
@@ -225,7 +234,7 @@ function reveal(){
 }
 function resultMsg(name){ const q=Q[qi], correctK=order.indexOf(q.correct), mine=answers[name];
  return {type:'result',ok:mine===correctK,answered:mine!==undefined,correct:LET[correctK]+'. '+q.a[q.correct],why:q.why,score:players[name].score,n:qi+1}; }
-function sendResult(name){ send(players[name].conn,resultMsg(name)) }
+function sendResult(name){ send(players[name].pid,resultMsg(name)) }
 function rankings(){ return TEAMS.filter(t=>Object.values(players).some(p=>p.team===t.id)).sort((a,b)=>progress[b.id]-progress[a.id]) }
 function endGame(){
  phase='end'; show('sEnd'); sfx.win(); confetti(220);
@@ -236,7 +245,7 @@ function endGame(){
  broadcast(n=>endMsg(n));
 }
 function endMsg(name){ const r=rankings(), t=players[name].team; return {type:'end',place:r.findIndex(x=>x.id===t)+1,team:TEAMS[t],score:players[name].score,total:Q.length} }
-function sendEnd(name){ send(players[name].conn,endMsg(name)) }
+function sendEnd(name){ send(players[name].pid,endMsg(name)) }
 function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on',s.id===id)) }
 
 $('startBtn').onclick=()=>{ if(!Object.keys(players).length && !confirm('Пока никто не подключился. Начать всё равно?')) return; nextQ(); };
@@ -244,7 +253,7 @@ $('revealBtn').onclick=reveal; $('nextBtn').onclick=nextQ;
 document.addEventListener('keydown',e=>{ if(e.key==='n'||e.key==='N'||e.key==='ArrowRight'){ if(phase==='reveal') nextQ(); else if(phase==='question') reveal(); } });
 
 renderLobby();
-if(window.Peer) makePeer(); else { $('status').textContent='Нет интернета: телефоны не смогут подключиться.'; }
+if(window.mqtt) connectBroker(); else { $('status').textContent='Нет интернета: телефоны не смогут подключиться.'; }
 </script>
 </body>
 </html>

@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#2b1a6b">
 <title>Пульт · Ракетная гонка</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
-<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
@@ -75,7 +75,10 @@ input{font:inherit;font-size:22px;font-weight:700;padding:14px 16px;border-radiu
 const TEAMS=[{name:'Совы',emoji:'🦉',color:'#7b61ff'},{name:'Лисы',emoji:'🦊',color:'#e8590c'},{name:'Кометы',emoji:'☄️',color:'#1d72d8'},{name:'Тигры',emoji:'🐯',color:'#2a9d4b'}];
 const SH=['▲','◆','●','■'], L=['A','B','C','D'];
 const $=id=>document.getElementById(id);
-let team=-1, conn=null, peer=null, me=null, tries=0;
+let team=-1, client=null, me=null, joinTimer=null, joined=false;
+const BROKERS=['wss://broker.hivemq.com:8884/mqtt','wss://broker.emqx.io:8084/mqtt'];
+let pid; try{ pid=sessionStorage.getItem('rr-pid') }catch(e){}
+if(!pid){ pid=Math.random().toString(36).slice(2,10); try{ sessionStorage.setItem('rr-pid',pid) }catch(e){} }
 const params=new URLSearchParams(location.search);
 if(params.get('room')){ $('room').value=params.get('room').toUpperCase(); $('roomBox').style.display='none'; }
 try{ $('name').value=localStorage.getItem('rr-name')||'' }catch(e){}
@@ -83,7 +86,7 @@ try{ $('name').value=localStorage.getItem('rr-name')||'' }catch(e){}
 $('teams').innerHTML=TEAMS.map((t,i)=>`<button class="team" data-i="${i}" style="background-color:${t.color}">${t.emoji}<br>${t.name}</button>`).join('');
 $('teams').onclick=e=>{ const b=e.target.closest('.team'); if(!b) return; team=+b.dataset.i; document.querySelectorAll('.team').forEach(x=>x.classList.toggle('sel',x===b)); };
 $('pad').innerHTML=L.map((l,i)=>`<button class="k c${i}" data-c="${i}">${SH[i]}<small>${l}</small></button>`).join('');
-$('pad').onclick=e=>{ const b=e.target.closest('.k'); if(!b||!conn) return; if(navigator.vibrate) navigator.vibrate(30); conn.send({type:'answer',choice:+b.dataset.c}); show('vWait'); waitMsg('🔒','Ответ принят!','Ждём остальных…'); };
+$('pad').onclick=e=>{ const b=e.target.closest('.k'); if(!b||!client) return; if(navigator.vibrate) navigator.vibrate(30); up({type:'answer',choice:+b.dataset.c}); show('vWait'); waitMsg('🔒','Ответ принят!','Ждём остальных…'); };
 
 function show(id){ document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id===id)) }
 function err(t){ $('err').textContent=t; $('err').style.display=t?'block':'none' }
@@ -95,30 +98,35 @@ function join(){
  if(room.length!==4) return err('Введите код комнаты из 4 символов.');
  if(!name) return err('Введите имя или ник.');
  if(team<0) return err('Выберите команду.');
- if(!window.Peer) return err('Нет интернета на телефоне. Включите Wi-Fi или мобильный интернет.');
+ if(!window.mqtt) return err('Нет интернета на телефоне. Включите Wi-Fi или мобильный интернет.');
  try{ localStorage.setItem('rr-name',name) }catch(e){}
  err(''); $('joinBtn').disabled=true; $('joinBtn').textContent='Подключаемся…';
  me={room,name,team};
  connect();
 }
+function topic(t){ return 'agis-vibequiz/'+me.room+'/'+t }
+function up(m){ m.pid=pid; try{ client.publish(topic('up'),JSON.stringify(m),{qos:1}) }catch(e){} }
 function connect(){
- if(peer) try{peer.destroy()}catch(e){}
- peer=new Peer();
- peer.on('open',()=>{
-  conn=peer.connect('agisquiz-'+me.room,{reliable:true});
-  const to=setTimeout(()=>{ if(!conn.open) fail('Не удалось подключиться. Проверьте код комнаты или попробуйте мобильный интернет.') },9000);
-  conn.on('open',()=>{ clearTimeout(to); tries=0; conn.send({type:'join',name:me.name,team:me.team}); });
-  conn.on('data',onData);
-  conn.on('close',()=>retry());
+ if(client) try{ client.end(true) }catch(e){}
+ const b=+(params.get('b')||0);
+ client=mqtt.connect(BROKERS[b]||BROKERS[0],{connectTimeout:8000,reconnectPeriod:2000,clean:true});
+ client.on('connect',()=>{
+  client.subscribe(topic('down/'+pid),{qos:1},()=>{
+   up({type:'join',name:me.name,team:me.team});
+   clearTimeout(joinTimer);
+   joinTimer=setTimeout(()=>{ if(!joined) fail('Комната '+me.room+' не отвечает. Проверьте код на доске и что доска открыта.') },8000);
+  });
  });
- peer.on('error',e=>{ if(e.type==='peer-unavailable') fail('Комната '+me.room+' не найдена. Проверьте код на доске.'); else retry(); });
+ client.on('message',(t,buf)=>{ let m; try{ m=JSON.parse(buf.toString()) }catch(e){ return } onData(m) });
+ client.on('reconnect',()=>{ if(joined){ show('vWait'); waitMsg('📡','Переподключение…','Связь прервалась, пробуем снова.') } });
+ client.on('error',()=>{});
+ setTimeout(()=>{ if(!client.connected && !joined) fail('Нет связи. Включите мобильный интернет или другой Wi-Fi и попробуйте ещё раз.') },10000);
 }
-function retry(){ if(!me) return; if(tries++<5){ show('vWait'); waitMsg('📡','Переподключение…','Связь прервалась, пробуем снова.'); setTimeout(connect,1500*tries) } else fail('Связь потеряна. Нажмите «Войти в игру», чтобы подключиться снова.') }
-function fail(t){ show('vJoin'); err(t); $('joinBtn').disabled=false; $('joinBtn').textContent='Войти в игру' }
+function fail(t){ joined=false; try{ client&&client.end(true) }catch(e){} show('vJoin'); err(t); $('joinBtn').disabled=false; $('joinBtn').textContent='Войти в игру' }
 
 function onData(m){
  const t=TEAMS[me.team];
- if(m.type==='joined'){ $('me').textContent=t.emoji+' '+m.name; show('vWait'); waitMsg(t.emoji,'Вы в игре!','Команда «'+t.name+'». Смотрите на доску — скоро начнём.'); }
+ if(m.type==='joined'){ joined=true; clearTimeout(joinTimer); $('me').textContent=t.emoji+' '+m.name; show('vWait'); waitMsg(t.emoji,'Вы в игре!','Команда «'+t.name+'». Смотрите на доску — скоро начнём.'); }
  if(m.type==='wait'){ show('vWait'); waitMsg(t.emoji,'Вы в игре!',m.text); }
  if(m.type==='question'){ $('qn').textContent=`Вопрос ${m.n} / ${m.total}`; show('vQ'); }
  if(m.type==='locked'){ show('vWait'); waitMsg('🔒','Ответ принят!','Ждём остальных…'); }
