@@ -114,7 +114,7 @@ function connect(){
   client.subscribe(topic('down/'+pid),{qos:1},()=>{
    up({type:'join',name:me.name,team:me.team});
    clearTimeout(joinTimer);
-   joinTimer=setTimeout(()=>{ if(!joined) fail('Комната '+me.room+' не отвечает. Проверьте код на доске и что доска открыта.') },8000);
+   joinTimer=setTimeout(()=>{ if(!joined) fail('Комната '+me.room+' не отвечает (v3, сервер '+((+(params.get('b')||0))+1)+'). Проверьте код. Если на доске нет надписи «v3», обновите доску: Ctrl+F5.') },8000);
   });
  });
  client.on('message',(t,buf)=>{ let m; try{ m=JSON.parse(buf.toString()) }catch(e){ return } onData(m) });

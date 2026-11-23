@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
 <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="questions.js"></script>
+<script src="questions.js?v=3"></script>
 <style>
 :root{--ink:#0b0f2e;--gold:#ffd23f}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -145,6 +145,7 @@ function toast(t){$('toast').textContent=t;$('toast').style.display='block';setT
 
 // ---------- connection (MQTT relay over secure WebSocket: works through school Wi-Fi and mobile data)
 const BROKERS=['wss://broker.hivemq.com:8884/mqtt','wss://broker.emqx.io:8084/mqtt'];
+const VER='v3';
 const CHARS='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 let code='',client=null,bi=0;
 function topic(t){ return 'agis-vibequiz/'+code+'/'+t }
@@ -154,8 +155,8 @@ function connectBroker(){
  let ok=false;
  client.on('connect',()=>{ ok=true;
   client.subscribe(topic('up'),{qos:1});
-  $('code').textContent=code; $('status').textContent='Комната открыта ✓';
-  const url=new URL('play.html',location.href); url.searchParams.set('room',code); if(bi) url.searchParams.set('b',bi);
+  $('code').textContent=code; $('status').textContent='Комната открыта ✓ · '+VER+' · сервер '+(bi+1);
+  const url=new URL('play.html',location.href); url.searchParams.set('room',code); url.searchParams.set('b',bi); url.searchParams.set('v',VER);
   $('qr').innerHTML=''; new QRCode($('qr'),{text:url.href,width:512,height:512,correctLevel:QRCode.CorrectLevel.M}); $('url').textContent=url.href;
   // phones that were already in the game: tell them we are back
   for(const n in players) sendState(n);
