@@ -164,7 +164,9 @@ function toast(t){$('toast').textContent=t;$('toast').style.display='block';setT
 const BROKERS=['wss://broker.hivemq.com:8884/mqtt','wss://broker.emqx.io:8084/mqtt'];
 const VER='v4';
 const CHARS='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-let code=[...Array(4)].map(()=>CHARS[Math.floor(Math.random()*CHARS.length)]).join('');
+// A fixed room can be set in the link (host.html?room=AGIS), so a QR printed on a slide always leads to this game.
+const fixedRoom=(new URLSearchParams(location.search).get('room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+let code=fixedRoom.length===4?fixedRoom:[...Array(4)].map(()=>CHARS[Math.floor(Math.random()*CHARS.length)]).join('');
 const clients=[], up=[false,false], via={};     // via[pid] = index of the relay this phone uses
 function topic(t){ return 'agis-vibequiz/'+code+'/'+t }
 // The board listens on BOTH relays at once, so a phone can join through whichever one works on its network.
